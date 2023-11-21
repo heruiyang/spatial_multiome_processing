@@ -3,7 +3,8 @@
 ## Table of Contents
 
 1. [Installation](#installation)
-2. [Running the workflow](#running-the-workflow)
+2. [Setting up a run](#setting-up-a-run)
+3. [Running the workflow](#running-the-workflow)
 
 ## Installation
 
