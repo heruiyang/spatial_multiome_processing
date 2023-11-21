@@ -1,0 +1,10 @@
+#!/usr/bin/bash
+#SBATCH --job-name=spatial_multiome         # Job name
+#SBATCH --mem=64G                            # Job memory request. Different units can be specified using the suffix [K|M|G|T]
+#SBATCH --time=18:00:00                       # Time limit 12 hours
+#SBATCH --output=./results/spatial_multiome_%j.log               # Standard output and error log
+#SBATCH --cpus-per-task=8 					# num cores
+
+source activate spatial_multiome
+
+snakemake -s workflow.snakefile --cores 8 --rerun-incomplete
