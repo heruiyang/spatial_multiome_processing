@@ -29,14 +29,16 @@ print(paste0('Kept ',length(barcodes_keep),' barcodes in tissue.', collapse=''))
 # Create filtered matrix
 colnames(counts) <- barcodes
   
-counts_out <- counts[,barcodes_keep]
-bc_out <- barcodes_keep
-peaks_out <- peaks[rowSums(as.matrix(counts_out)) > 0,]
+counts <- t(counts[,barcodes_keep])
+
+bc_filtered <- barcodes_keep
+peaks_filtered <- peaks[unique(summary(counts)$j),]
+counts_filtered <- t(counts[,unique(summary(counts)$j)])
 
 # Write output
 # barcodes.tsv
-write.table(bc_out, paste(output_dir, '/barcodes.tsv', sep=''), quote=F, sep='\t', row.names=F, col.names=F)
+write.table(bc_filtered, paste(output_dir, '/barcodes.tsv', sep=''), quote=F, sep='\t', row.names=F, col.names=F)
 # peaks.bed
-write.table(peaks_out, paste(output_dir, '/peaks.bed', sep=''), quote=F, sep='\t', row.names=F, col.names=F)
+write.table(peaks_filtered, paste(output_dir, '/peaks.bed', sep=''), quote=F, sep='\t', row.names=F, col.names=F)
 # matrix.mtx
-writeMM(counts_out, paste(output_dir, '/matrix.mtx', sep=''))
+writeMM(counts_filtered, paste(output_dir, '/matrix.mtx', sep=''))
