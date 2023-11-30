@@ -13,6 +13,9 @@ sample_alignment_jsons:
   # Path to SpaceRanger fiducial alignment json - if you want to do automated alignment (currently not implemented), put 'none' 
   example: data/example.json
 
+# Path and prefix for bowtie2 genome reference
+ref: refs/GrCm39/GrCm39
+
 #########################
 # Configuration options #
 #########################
@@ -22,9 +25,6 @@ whitelist: refs/visium-v1.txt
 
 # Path for text file containing spatial row/column indices of valid barcodes
 spot_coords: refs/visium-v1_coordinates.txt
-
-# Path and prefix for bowtie2 genome reference
-ref: refs/GrCm39/GrCm39
 
 # Whether to use UMIs for deduplication
 umi_dedup: False
