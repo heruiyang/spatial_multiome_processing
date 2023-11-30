@@ -19,6 +19,7 @@ fragments <- CreateFragmentObject(
 # Read peaks from macs2 output and covert to granges
 peaks <- read.table(peaks_file, sep='\t', header=F)
 features <- makeGRangesFromDataFrame(peaks, seqnames.field='V1', start.field='V2', end.field='V3')
+features <- keepStandardChromosomes(features, pruning.mode = "coarse")
 
 mtx <- FeatureMatrix(
   fragments,

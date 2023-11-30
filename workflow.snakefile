@@ -101,8 +101,8 @@ rule process_umi_bc:
 		umitools_log="logs/{sample}/process_umi_bc_umitools.log",
 		sinto_log="logs/{sample}/process_umi_bc_sinto.log"
 	run:
-		shell("zcat {input.read1} | umi_tools extract --extract-method=string --bc-pattern=XXXXXXXXXXXXXXXXNNNNNNNNNNNN --read2-in={input.read2} --read2-out={output.umitools_fastq} --log {log.umitools_log} 1>/dev/null")
-		shell("sinto barcode --barcode_fastq {input.read1} --read1 {output.umitools_fastq} -b 16 --whitelist {params.whitelist} &>{log.sinto_log}")
+		shell("zcat {input.read1} | umi_tools extract --extract-method=string --whitelist={params.whitelist} --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNNNN --read2-in={input.read2} --read2-out={output.umitools_fastq} --log {log.umitools_log} 1>/dev/null")
+		shell("sinto barcode --barcode_fastq {input.read1} --read1 {output.umitools_fastq} -b 16  &>{log.sinto_log}")
 
 
 rule align:

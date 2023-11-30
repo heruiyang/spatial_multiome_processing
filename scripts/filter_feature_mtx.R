@@ -23,16 +23,16 @@ visium_coords[['barcode']] <- rownames(visium_coords)
 
 merged_res <- dplyr::left_join(visium_coords, json_data$oligo, by=c('col','row'))
 barcodes_keep <- merged_res[!is.na(merged_res$tissue),'barcode']
-barcodes_keep <- barcodes_keep[barcodes_keep %in% colnames(counts)]
+barcodes_keep <- barcodes_keep[barcodes_keep %in% barcodes]
 
 print(paste0('Kept ',length(barcodes_keep),' barcodes in tissue.', collapse=''))
 
 # Create filtered matrix
 colnames(counts) <- barcodes
   
-counts <- t(counts[,barcodes_keep])
+counts <- t(counts[,barcodes %in% barcodes_keep])
 
-bc_filtered <- barcodes_keep
+bc_filtered <- barcodes[barcodes %in% barcodes_keep]
 peaks_filtered <- peaks[unique(summary(counts)$j),]
 counts_filtered <- t(counts[,unique(summary(counts)$j)])
 
