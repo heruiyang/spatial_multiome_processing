@@ -20,8 +20,8 @@ rule all:
 		expand("results/{sample}/fastq_process/{sample}_processed.barcoded.fastq.gz", sample=input_samples.keys()),
 		expand("results/{sample}/{sample}_frags.sorted.bed.gz", sample=input_samples.keys()),
 		expand("results/{sample}/{sample}_frags.sorted.bed.gz.tbi", sample=input_samples.keys()),
-		expand("results/{sample}/align/{sample}_bc.sorted.dedup.bam", sample=input_samples.keys()),
-		expand("results/{sample}/align/{sample}_bc.sorted.dedup.bam.bai", sample=input_samples.keys()),
+		expand("results/{sample}/align/{sample}.sorted.dedup.bam", sample=input_samples.keys()),
+		expand("results/{sample}/align/{sample}.sorted.dedup.bam.bai", sample=input_samples.keys()),
 		expand("results/{sample}/macs2_callpeak/{sample}_peaks.narrowPeak", sample=input_samples.keys()),
 		expand("results/{sample}/raw_peak_bc_matrix/barcodes.tsv", sample=input_samples.keys()),
 		expand("results/{sample}/raw_peak_bc_matrix/peaks.bed", sample=input_samples.keys()),
@@ -109,43 +109,47 @@ rule align:
 	input:
 		fastq = "results/{sample}/fastq_process/{sample}_processed.barcoded.fastq.gz"
 	output:
+		nobc_bam = temporary("results/{sample}/align/{sample}_nobc.sorted.bam"),
+		nobc_index = temporary("results/{sample}/align/{sample}_nobc.sorted.bam.bai"),
 		bam = "results/{sample}/align/{sample}.sorted.bam",
 		index = "results/{sample}/align/{sample}.sorted.bam.bai"
 	message:
 		"Aligning to specified reference genome with bowtie2"
 	params:
 		ref=config["ref"]
-	log: "logs/{sample}/align.log"
+	log: 
+		align = "logs/{sample}/align_bowtie2.log",
+		nametotag = "logs/{sample}/align_nametotag.log"
 	threads: 8
 	run:
-		shell("bowtie2 --very-sensitive -q --phred33 --end-to-end -t -x {params.ref} -U {input.fastq} -p {threads} | samtools view -bS - | samtools sort - -o {output.bam} -@ {threads} &>{log}")
-		shell("samtools index {output.bam} -o {output.index} &>{log}")
+		shell("bowtie2 --very-sensitive -q --phred33 --end-to-end -t -x {params.ref} -U {input.fastq} -p {threads} | samtools view -bS - | samtools sort - -o {output.nobc_bam} -@ {threads} &>{log.align}")
+		shell("samtools index {output.nobc_bam} -o {output.nobc_index} &> {log.align}")
+		shell("samtools view -h {output.nobc_bam} | sinto nametotag -b - | sinto nametotag -b - --barcode_regex '[ACTG]*$' --tag UM | samtools view -b - > {output.bam} 2> {log.nametotag}")
+		shell("samtools index {output.bam} -o {output.index}")
 
 
 rule dedup:
 	input:
-		bam = "results/{sample}/align/{sample}.sorted.bam"
+		bam = "results/{sample}/align/{sample}.sorted.bam",
+		index = "results/{sample}/align/{sample}.sorted.bam.bai"
 	output:
 #		statsfile1 = "results/{sample}/{sample}_edit_distance.tsv",
 #		statsfile2 = "results/{sample}/{sample}_per_umi_per_position.tsv",
 #		statsfile3 = "results/{sample}/{sample}_per_umi.tsv",
-		dedup_bam = temporary("results/{sample}/align/{sample}.sorted.dedup.bam"),
-		bam = "results/{sample}/align/{sample}_bc.sorted.dedup.bam",
-		index = "results/{sample}/align/{sample}_bc.sorted.dedup.bam.bai"
+		dedup_bam = "results/{sample}/align/{sample}.sorted.dedup.bam",
+		dedup_index = "results/{sample}/align/{sample}.sorted.dedup.bam.bai"
 	message:
 		"Performing UMI deduplication with umi_tools and bam file barcode assignment"
 	log: 
-		umitools_log = "logs/{sample}/dedup_umitools.log",
-		sinto_log = "logs/{sample}/dedup_sinto.log"
+		umitools_log = "logs/{sample}/dedup_umitools.log"
 	params:
 		use_umi = config['umi_dedup']
 	run:
 		if params.use_umi:
-			shell("umi_tools dedup --stdin={input.bam} --log={log.umitools_log} --per-cell --output-stats=results/{wildcards.sample}/{wildcards.sample} > {output.dedup_bam}")
+			shell("umi_tools dedup --stdin={input.bam} --log={log.umitools_log} --extract-umi-method=tag --umi-tag=UM --cell-tag=CB --per-cell --output-stats=results/{wildcards.sample}/{wildcards.sample} > {output.dedup_bam}")
 		else:
-			shell("umi_tools dedup --stdin={input.bam} --log={log.umitools_log} --per-cell --ignore-umi > {output.dedup_bam}")
-		shell("samtools view -h {output.dedup_bam} | sinto nametotag -b - | samtools view -b - > {output.bam} 2>{log.sinto_log}")
-		shell("samtools index {output.bam} -o {output.index}")
+			shell("umi_tools dedup --stdin={input.bam} --log={log.umitools_log} --per-cell --ignore-umi --extract-umi-method=tag --umi-tag=UM --cell-tag=CB > {output.dedup_bam}")
+		shell("samtools index {output.dedup_bam} -o {output.dedup_index}")
 
 
 """
@@ -156,7 +160,7 @@ We should also consider using e.g. MACS2 estimated fragment length to generate a
 """
 rule build_fragments_file:
 	input:
-		bam = "results/{sample}/align/{sample}_bc.sorted.dedup.bam"
+		bam = "results/{sample}/align/{sample}.sorted.dedup.bam"
 	output:
 		frag_file_unsorted = temporary("results/{sample}/{sample}_frags.bed"),
 		frag_file_sorted = temporary("results/{sample}/{sample}_frags.sorted.bed"),
@@ -173,7 +177,7 @@ rule build_fragments_file:
 
 rule call_peaks:
 	input:
-		bam = "results/{sample}/align/{sample}_bc.sorted.dedup.bam"
+		bam = "results/{sample}/align/{sample}.sorted.dedup.bam"
 	output:
 		peaks = "results/{sample}/macs2_callpeak/{sample}_peaks.narrowPeak"
 	message: "Calling peaks with MACS2"

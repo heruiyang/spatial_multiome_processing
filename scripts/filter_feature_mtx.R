@@ -23,6 +23,7 @@ visium_coords[['barcode']] <- rownames(visium_coords)
 
 merged_res <- dplyr::left_join(visium_coords, json_data$oligo, by=c('col','row'))
 barcodes_keep <- merged_res[!is.na(merged_res$tissue),'barcode']
+barcodes_keep <- barcodes_keep[barcodes_keep %in% colnames(counts)]
 
 print(paste0('Kept ',length(barcodes_keep),' barcodes in tissue.', collapse=''))
 
