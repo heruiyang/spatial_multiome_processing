@@ -4,7 +4,8 @@
 
 1. [Installation](#installation)
 2. [Setting up a run](#setting-up-a-run)
-3. [Running the workflow](#running-the-workflow)
+3. [Configuring workflow options](#configuring-workflow-options)
+4. [Running the workflow](#running-the-workflow)
 
 ## Installation
 
@@ -28,9 +29,7 @@ You're ready to start!
 
 Input files and options to the snakemake pipeline are specified in the `config.yaml` config file.
 
-#### Input data
-
-There are two required input `fastq.gz` files and one optional `json` file (work in progress - this is currently required as well, and must be generated from 10X SpaceRanger's manual fiducial alignment). The fastq files are specified in the config file as:
+#### `sample_fastqs` - Input data
 
 ```
 sample_fastqs:
@@ -41,7 +40,7 @@ sample_fastqs:
     R2: path/to/read2.fastq.gz
 ```
 
-The `json` file specifies which spots are part of the tissue and is used to create the filtered feature matrix files in the directory `filtered_peak_bc_matrix`. The pipeline expects an input json file the 10X SpaceRanger format (see [10X Genomics documentation](https://www.10xgenomics.com/support/software/space-ranger/analysis/inputs/image-fiducial-alignment)). This file is specified in the config file as:
+#### `sample_alignment_jsons` - Tissue image alignment
 
 ```
 sample_alignment_jsons:
@@ -49,7 +48,9 @@ sample_alignment_jsons:
   sample_name: path/to/alignment.json
 ```
 
-#### Reference genome
+The `json` file specifies which spots are part of the tissue and is used to create the filtered feature matrix files in the directory `filtered_peak_bc_matrix`. The pipeline expects an input json file the 10X SpaceRanger format (see [10X Genomics documentation](https://www.10xgenomics.com/support/software/space-ranger/analysis/inputs/image-fiducial-alignment)). 
+
+#### `ref` - Reference genome
 
 `spatial_multiome` uses the `bowtie2` aligner and expects references in a compatible format. If you have a `genome.fa` or `genome.fa.gz` file that contains the genome you would like to align to, run the following command to generate a `bowtie2`-compatible reference:
 
@@ -63,6 +64,67 @@ Replace `prefix` with a suitable name. References are specified in the config fi
 # Path and prefix for bowtie2 genome reference
 ref: path/to/ref/and/prefix
 ```
+
+## Configuring workflow options
+
+The workflow has a number of options that can be adjusted. These options are specified in the `config.yaml` configuration file, where each option is specified as a `param:value` pair. Options are explained below:
+
+#### `whitelist`
+
+```
+# Path for text file containing barcode whitelist
+whitelist: refs/visium-v1.txt
+```
+
+The whitelist text file contains all valid spatial barcodes, with one barcode on each line. For the Visium v1 protocol, this file is provided in this repository.
+
+#### `spot_coords`
+
+```
+# Path for text file containing spatial row/column indices of valid barcodes
+spot_coords: refs/visium-v1_coordinates.txt
+```
+
+The spot coordinates file is a tab-delimited file containing:
+
+Column 1: all valid spatial barcodes (these must match the barcodes specified in `whitelist` above) \
+Column 2: 1-based column index of the spatial barcode  \
+Column 3: 1-based row index of the spatial barcode 
+
+#### `umi-dedup`
+
+```
+# Whether to use UMIs for deduplication
+umi_dedup: False
+```
+
+Boolean value that specifies whether deduplication should be performed by UMI or by genomic alignment position.
+
+### Peak calling options
+
+#### `macs2_fdr`
+
+```
+### Options for MACS2 peak calling
+# FDR threshold for peak calling
+macs2_fdr: 0.01
+```
+
+False discovery rate for MACS2 peak calling. Reasonable options are `0.01`, `0.05`, etc.
+
+#### `macs2_genomesize`
+
+```
+# Effective genome size
+# Defaults for species:
+#   hs: 2.7e9
+#   mm: 1.87e9
+#   ce: 9e7
+#   dm: 1.2e8
+macs2_genomesize: 1.87e9
+```
+
+Effective genome size for MACS2 peak calling. Default sizes for common species are listed above.
 
 ## Running the workflow
 
