@@ -36,21 +36,15 @@ rule all:
 		expand("results/{sample}/fastq_process/fastqc/{sample}_r1_trimmed_fastqc.html", sample=input_samples.keys()),
 		expand("results/{sample}/fastq_process/fastqc/{sample}_r2_trimmed_fastqc.html", sample=input_samples.keys()),
 		expand("results/{sample}/fastq_process/cutadapt/{sample}_r1_discarded.fastq.gz", sample=input_samples.keys()),
-		expand("results/{sample}/fastq_process/cutadapt/{sample}_r2_discarded.fastq.gz", sample=input_samples.keys())
+		expand("results/{sample}/fastq_process/cutadapt/{sample}_r2_discarded.fastq.gz", sample=input_samples.keys()),
+		expand("results/{sample}/fastq_process/{sample}_bc_whitelist.tsv", sample=input_samples.keys())
 
 
-'''rule process_bc_samples:
-	input:
-		read1_fastq = expand(input_r1)
-	output:
-		umi_fastq="results/{sample}_umis.fastq",
-		bc_fastq="results/{sample}_barcodes.fastq"
-	message:
-		"Splitting read 1 fastqs"
-	shell:
-		"zcat {input.read1_fastq} | python scripts/split_fastq.py - {output.umi_fastq} {output.bc_fastq}"
-'''
-
+"""
+Trim fastqs to remove degenerate sequences (e.g. homopolymers)
+Filter out any read pairs where R1 is trimmed, as these reads are missing UMI and/or spatial barcode
+Note: This may not actually be necessary if we don't care about UMI
+"""
 rule fastq_trim:
 	input:
 		read1 = lambda wildcards: config['sample_fastqs'][wildcards.sample]['R1'],
@@ -72,6 +66,9 @@ rule fastq_trim:
 		shell("seqtk subseq {input.read1} {output.discarded_read_names} | gzip > {output.read1_discarded}")
 		shell("seqtk subseq {input.read2} {output.discarded_read_names} | gzip > {output.read2_discarded}")
 
+"""
+Generate fastqc report for trimmed reads
+"""
 rule fastqc:
 	input:
 		read1_trimmed = "results/{sample}/fastq_process/{sample}_r1_trimmed.fastq.gz",
@@ -86,25 +83,47 @@ rule fastqc:
 	run:
 		shell("fastqc -o results/{wildcards.sample}/fastq_process/fastqc -f fastq {input.read1_trimmed} {input.read2_trimmed} &> {log}")
 
+"""
+Generate whitelist of (potentially) valid barcodes as well as invalid barcodes that are likely to be due to read error
+Note: This does not make use of the known visium whitelist! There is a possibility that valid barcodes that are part of the tissue 
+may be subsumed into known invalid barcodes if the read depth is low enough. Consider replacing this with an efficient 
+hamming distance correction method.
+"""
+rule bc_error_correct:
+	input:
+		read1 = "results/{sample}/fastq_process/{sample}_r1_trimmed.fastq.gz"
+	output:
+		whitelist = "results/{sample}/fastq_process/{sample}_bc_whitelist.tsv"
+	message:
+		"Performing spatial barcode error correction"
+	log:
+		"logs/{sample}/bc_error_correct.log"
+	run:
+		shell("zcat {input.read1} | umi_tools whitelist --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNNNN > {output.whitelist} 2> {log}")
+
+
+"""
+Filter spatial barcodes and perform error correction by previously calculated whitelist
+"""
 rule process_umi_bc:
 	input:
 		read1 = "results/{sample}/fastq_process/{sample}_r1_trimmed.fastq.gz",
-		read2 = "results/{sample}/fastq_process/{sample}_r2_trimmed.fastq.gz"
+		read2 = "results/{sample}/fastq_process/{sample}_r2_trimmed.fastq.gz",
+		whitelist = "results/{sample}/fastq_process/{sample}_bc_whitelist.tsv"
 	output:
-		umitools_fastq=temporary("results/{sample}/fastq_process/{sample}_processed.fastq.gz"),
 		fastq="results/{sample}/fastq_process/{sample}_processed.barcoded.fastq.gz"
 	message:
-		"Filtering barcodes and performing UMI deduplication"
-	params:
-		whitelist=config["whitelist"]
+		"Filtering spatial barcodes"
 	log: 
 		umitools_log="logs/{sample}/process_umi_bc_umitools.log",
-		sinto_log="logs/{sample}/process_umi_bc_sinto.log"
 	run:
-		shell("zcat {input.read1} | umi_tools extract --extract-method=string --whitelist={params.whitelist} --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNNNN --read2-in={input.read2} --read2-out={output.umitools_fastq} --log {log.umitools_log} 1>/dev/null")
-		shell("sinto barcode --barcode_fastq {input.read1} --read1 {output.umitools_fastq} -b 16  &>{log.sinto_log}")
+		shell("zcat {input.read1} | umi_tools extract --extract-method=string --whitelist={input.whitelist} --error-correct-cell --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNNNN --read2-in={input.read2} --read2-out={output.fastq} --log {log.umitools_log} 1>/dev/null")
 
-
+"""
+Align with bowtie2
+Move UMI and spatial barcode from read name to tags in the bam file
+We expect the read name to end in _{16bp_spatial_barcode}_{12bp_umi}.
+"""
 rule align:
 	input:
 		fastq = "results/{sample}/fastq_process/{sample}_processed.barcoded.fastq.gz"
@@ -124,10 +143,14 @@ rule align:
 	run:
 		shell("bowtie2 --very-sensitive -q --phred33 --end-to-end -t -x {params.ref} -U {input.fastq} -p {threads} | samtools view -bS - | samtools sort - -o {output.nobc_bam} -@ {threads} &>{log.align}")
 		shell("samtools index {output.nobc_bam} -o {output.nobc_index} &> {log.align}")
-		shell("samtools view -h {output.nobc_bam} | sinto nametotag -b - | sinto nametotag -b - --barcode_regex '[ACTG]*$' --tag UM | samtools view -b - > {output.bam} 2> {log.nametotag}")
+		shell("samtools view -h {output.nobc_bam} | sinto nametotag -b - --barcode_regex '(?<=\_)[ACTG]*(?=\_)' --tag CB | sinto nametotag -b - --barcode_regex '[ACTG]*$' --tag UM | samtools view -b - > {output.bam} 2> {log.nametotag}")
 		shell("samtools index {output.bam} -o {output.index}")
 
-
+"""
+Also perform read deduplication
+Note: We prefer to use genomic position rather than UMI for deduplication as some reads
+were likely amplified by IVT before UMIs were attached
+"""
 rule dedup:
 	input:
 		bam = "results/{sample}/align/{sample}.sorted.bam",
@@ -174,7 +197,10 @@ rule build_fragments_file:
 		shell("bgzip {output.frag_file_sorted} -c 1>{output.frag_file_sorted_gzip} 2>{log}")
 		shell("tabix -p bed {output.frag_file_sorted_gzip} 2>{log}")
 
-
+"""
+Peak calling with MACS2
+Note: macs2 estimates fragment size(?) - we might want to think about using that
+"""
 rule call_peaks:
 	input:
 		bam = "results/{sample}/align/{sample}.sorted.dedup.bam"
@@ -206,9 +232,21 @@ rule create_feature_mtx:
 	message: "Creating feature by spot matrix"
 	log: "logs/{sample}/create_feature_mtx.log"
 	params:
-		output_dir = "results/{sample}/raw_peak_bc_matrix"
+		output_dir = "results/{sample}/raw_peak_bc_matrix",
+		remove_artifact = config["remove_artifacts"],
+		test_type = config["test_type"],
+		genome_fasta = config["genome_fasta"],
+		window = config["window_length"],
+		p_len = config["poly_a_t_threshold"]
 	shell:
-		"Rscript ./scripts/create_feature_mtx.R {input.frag_file} {input.peaks} {params.output_dir} &> {log}"
+		if {params.remove_artifact}:
+			"Rscript ./scripts/process_artifacts.R {params.genome_fasta} {input.peaks} {params.test_type} {params.window} {params.p_len} {params.output_dir} &> {log}"
+			if {params.test_type == 'debug'}:
+				"Rscript ./scripts/create_feature_mtx.R {input.frag_file} {input.peaks} {params.output_dir} &> {log}"
+			else:
+				"Rscript ./scripts/create_feature_mtx.R {input.frag_file} results/{wildcards.sample}/raw_peak_bc_matrix/filtered_peaks.narrowPeak {params.output_dir} &> {log}"
+		else:
+			"Rscript ./scripts/create_feature_mtx.R {input.frag_file} {input.peaks} {params.output_dir} &> {log}"
 
 
 rule filter_feature_mtx:
@@ -232,20 +270,5 @@ rule filter_feature_mtx:
 		else:
 			shell('python -u ./scripts/align_image.py')
 			shell('Rscript ./scripts/filter_feature_mtx.R results/{sample}/fiducial.json {input.barcodes} {input.peaks} {input.matrix} {params.spot_coords} {params.output_dir} &> {log}')
-
-
-'''
-rule process_bam:
-	input:
-		bam = "results/{sample}/{sample}_dedup.bam"
-	output:
-		bam = "results/{sample}/{sample}_dedup_processed.bam"
-		index = "results/{sample}/{sample}_dedup_processed.bam.bai"
-	message:
-		"Processing deduplicated BAM file"
-	log: "logs/{sample}/{sample}_process_bam.log"
-	shell:
-		"samtools index {output.bam} -o {output.index}"
-'''
 
 
