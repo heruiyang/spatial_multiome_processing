@@ -13,18 +13,16 @@ sample_alignment_jsons:
   # Path to SpaceRanger fiducial alignment json - if you want to do automated alignment (currently not implemented), put 'none' 
   example: data/example.json
 
+### Whether to do full run for processing or just debug/QC
+# two options: 'processing', 'debug'
+run_type: 'processing'
+
 # Path and prefix for bowtie2 genome reference
 ref: refs/GrCm39/GrCm39
 
-#########################
-# Configuration options #
-#########################
-
-# Path for text file containing barcode whitelist
-whitelist: refs/visium-v1.txt
-
-# Path for text file containing spatial row/column indices of valid barcodes
-spot_coords: refs/visium-v1_coordinates.txt
+###########################################
+# Configuration options for all run types #
+###########################################
 
 # Whether to use UMIs for deduplication
 umi_dedup: False
@@ -40,3 +38,26 @@ macs2_fdr: 0.01
 #   ce: 9e7
 #   dm: 1.2e8
 macs2_genomesize: 1.87e9
+
+# Remove artifact pA/pT peaks (mostly redundant, included for QC and tech dev purposes) 
+remove_artifacts: False
+
+####################################################
+# Configuration options for spatial processing run #
+####################################################
+
+# Path for text file containing barcode whitelist
+whitelist: refs/visium-v1.txt
+
+# Path for text file containing spatial row/column indices of valid barcodes
+spot_coords: refs/visium-v1_coordinates.txt
+
+#######################################
+# Configuration options for debug run #
+#######################################
+
+window_length: 70
+
+poly_a_t_threshold: 10
+
+genome_fasta: path/to/genome/fasta

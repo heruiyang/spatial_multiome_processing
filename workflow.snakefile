@@ -37,7 +37,6 @@ rule all:
 		expand("results/{sample}/fastq_process/fastqc/{sample}_r2_trimmed_fastqc.html", sample=input_samples.keys()),
 		expand("results/{sample}/fastq_process/cutadapt/{sample}_r1_discarded.fastq.gz", sample=input_samples.keys()),
 		expand("results/{sample}/fastq_process/cutadapt/{sample}_r2_discarded.fastq.gz", sample=input_samples.keys()),
-		expand("results/{sample}/fastq_process/{sample}_bc_whitelist.tsv", sample=input_samples.keys())
 
 
 """
@@ -84,40 +83,25 @@ rule fastqc:
 		shell("fastqc -o results/{wildcards.sample}/fastq_process/fastqc -f fastq {input.read1_trimmed} {input.read2_trimmed} &> {log}")
 
 """
-Generate whitelist of (potentially) valid barcodes as well as invalid barcodes that are likely to be due to read error
-Note: This does not make use of the known visium whitelist! There is a possibility that valid barcodes that are part of the tissue 
-may be subsumed into known invalid barcodes if the read depth is low enough. Consider replacing this with an efficient 
-hamming distance correction method.
-"""
-rule bc_error_correct:
-	input:
-		read1 = "results/{sample}/fastq_process/{sample}_r1_trimmed.fastq.gz"
-	output:
-		whitelist = "results/{sample}/fastq_process/{sample}_bc_whitelist.tsv"
-	message:
-		"Performing spatial barcode error correction"
-	log:
-		"logs/{sample}/bc_error_correct.log"
-	run:
-		shell("zcat {input.read1} | umi_tools whitelist --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNNNN > {output.whitelist} 2> {log}")
-
-
-"""
 Filter spatial barcodes and perform error correction by previously calculated whitelist
 """
 rule process_umi_bc:
 	input:
 		read1 = "results/{sample}/fastq_process/{sample}_r1_trimmed.fastq.gz",
-		read2 = "results/{sample}/fastq_process/{sample}_r2_trimmed.fastq.gz",
-		whitelist = "results/{sample}/fastq_process/{sample}_bc_whitelist.tsv"
+		read2 = "results/{sample}/fastq_process/{sample}_r2_trimmed.fastq.gz"
 	output:
+		umitools_fastq=temporary("results/{sample}/fastq_process/{sample}_processed.fastq.gz"),
 		fastq="results/{sample}/fastq_process/{sample}_processed.barcoded.fastq.gz"
 	message:
-		"Filtering spatial barcodes"
+		"Filtering barcodes and performing UMI deduplication"
+	params:
+		whitelist=config["whitelist"]
 	log: 
 		umitools_log="logs/{sample}/process_umi_bc_umitools.log",
+		sinto_log="logs/{sample}/process_umi_bc_sinto.log"
 	run:
-		shell("zcat {input.read1} | umi_tools extract --extract-method=string --whitelist={input.whitelist} --error-correct-cell --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNNNN --read2-in={input.read2} --read2-out={output.fastq} --log {log.umitools_log} 1>/dev/null")
+		shell("zcat {input.read1} | umi_tools extract --extract-method=string --whitelist={params.whitelist} --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNNNN --read2-in={input.read2} --read2-out={output.umitools_fastq} --log {log.umitools_log} 1>/dev/null")
+		shell("sinto barcode --barcode_fastq {input.read1} --read1 {output.umitools_fastq} -b 16 --whitelist {params.whitelist} &>{log.sinto_log}")
 
 """
 Align with bowtie2
@@ -234,19 +218,20 @@ rule create_feature_mtx:
 	params:
 		output_dir = "results/{sample}/raw_peak_bc_matrix",
 		remove_artifact = config["remove_artifacts"],
-		test_type = config["test_type"],
+		run_type = config["run_type"],
 		genome_fasta = config["genome_fasta"],
 		window = config["window_length"],
 		p_len = config["poly_a_t_threshold"]
-	shell:
-		if {params.remove_artifact}:
-			"Rscript ./scripts/process_artifacts.R {params.genome_fasta} {input.peaks} {params.test_type} {params.window} {params.p_len} {params.output_dir} &> {log}"
-			if {params.test_type == 'debug'}:
-				"Rscript ./scripts/create_feature_mtx.R {input.frag_file} {input.peaks} {params.output_dir} &> {log}"
+	run:
+		if params.remove_artifact:
+			print('Removing artifactual peaks...')
+			shell("Rscript ./scripts/process_artifacts.R {params.genome_fasta} {input.peaks} {params.run_type} {params.window} {params.p_len} {params.output_dir} &> {log}")
+			if {params.run_type == 'debug'}:
+				shell("Rscript ./scripts/create_feature_mtx.R {input.frag_file} {input.peaks} {params.output_dir} &> {log}")
 			else:
-				"Rscript ./scripts/create_feature_mtx.R {input.frag_file} results/{wildcards.sample}/raw_peak_bc_matrix/filtered_peaks.narrowPeak {params.output_dir} &> {log}"
+				shell("Rscript ./scripts/create_feature_mtx.R {input.frag_file} results/{wildcards.sample}/raw_peak_bc_matrix/filtered_peaks.narrowPeak {params.output_dir} &> {log}")
 		else:
-			"Rscript ./scripts/create_feature_mtx.R {input.frag_file} {input.peaks} {params.output_dir} &> {log}"
+			shell("Rscript ./scripts/create_feature_mtx.R {input.frag_file} {input.peaks} {params.output_dir} &> {log}")
 
 
 rule filter_feature_mtx:
@@ -270,5 +255,3 @@ rule filter_feature_mtx:
 		else:
 			shell('python -u ./scripts/align_image.py')
 			shell('Rscript ./scripts/filter_feature_mtx.R results/{sample}/fiducial.json {input.barcodes} {input.peaks} {input.matrix} {params.spot_coords} {params.output_dir} &> {log}')
-
-

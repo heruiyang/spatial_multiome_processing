@@ -1,6 +1,7 @@
 library(seqinr)
 library(dplyr)
 library(data.table)
+library(ggplot2)
 
 # Parse arguments
 args <- commandArgs(trailingOnly=TRUE)
@@ -23,7 +24,7 @@ filter_peaks <- function(peaks, p_len, window, genome){
 
 
   artifact_peaks <- rep(FALSE, dim(peaks)[1])
-  for (i in 1:dim(peaks)[1]){
+  for (i in seq_len(dim(peaks)[1])){
     peak <- peaks[i,]
     upstream_region <- paste0(genome[[peak$chr]][(peak$start - window):(peak$start)], collapse='')
     downstream_region <- paste0(genome[[peak$chr]][(peak$end):(peak$end + window)], collapse='')
@@ -37,6 +38,28 @@ filter_peaks <- function(peaks, p_len, window, genome){
   return(artifact_peaks)
 }
 
+base_freqs <- function(peaks, window, genome){
+  seq_freqs <- as.data.frame(matrix(0, nrow=4, ncol=window*2))
+  rownames(seq_freqs) <- c('a','c','t','g')
+  colnames(seq_freqs) <- seq_len(window*2)
+
+  for (i in seq_len(dim(peaks)[1])){
+    peak <- peaks[i,]
+    up_seq <- genome[[peak$chr]][(peak$start - window):(peak$start)]
+    down_seq <- genome[[peak$chr]][(peak$end):(peak$end + window)]
+    for (j in seq_len(window)){
+      if (!is.na(up_seq[j]) & up_seq[j] != 'n'){
+        seq_freqs[up_seq[j],j] <- seq_freqs[up_seq[j],j] + 1
+      }
+      if (!is.na(down_seq[j]) & up_seq[j] != 'n'){
+        seq_freqs[down_seq[j],j+window] <- seq_freqs[down_seq[j],j+window] + 1
+      }
+    }
+  }
+
+  seq_freqs <- apply(seq_freqs, 2, function(x){return(x/sum(x))})
+  return(as.data.frame(seq_freqs))
+}
 
 if (!all(unique(peaks$chr) %in% names(genome))) {
   stop('Chromosome names in genome fasta file do not match peak names. Make sure that the same genome sequence is used for both alignment and artifact filtering.')
@@ -56,7 +79,7 @@ if (test_type == 'debug'){
     }
   }
 
-  filename <- paste0(output_dir, '/artifact_debug_plot.pdf',collapse='')
+  filename <- paste0(output_dir, '/artifact_peak_frequency_plot.pdf',collapse='')
   plot_df <- as.data.frame(mat)
   plot_df[['plen']] <- as.numeric(rownames(plot_df))
   plot_df <- as.data.frame(melt(as.data.table(plot_df), id.vars=c('plen'), value.name=c('n_filtered_out')))
@@ -69,6 +92,19 @@ if (test_type == 'debug'){
     theme_classic()
   dev.off()
 
+  # Generate nucleotide frequency plots
+  out_df <- base_freqs(peaks, window=250, genome=genome)
+  out_df[['nucleotide']] <- rownames(out_df)
+  plot_df <- as.data.frame(melt(as.data.table(out_df), id.vars=c('nucleotide'), value.name=c('frequency'), variable.name=c('position')))
+  filename <- paste0(output_dir, '/nucleotide_freq_debug_plot.pdf',collapse='')
+  pdf(filename, width=15, height=5)
+  ggplot(plot_df) + 
+    geom_line(aes(x=position, y=frequency, group=nucleotide, color=nucleotide)) +
+    geom_vline(xintercept = window) + 
+    theme_classic() +
+    xlab('Position') +
+    ylab('Nucleotide frequency')
+  dev.off()
 } else {
   barcodes <- readLines(bc_file)
   counts <- Matrix::readMM(mtx_file)
