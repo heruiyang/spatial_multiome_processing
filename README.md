@@ -50,6 +50,16 @@ sample_alignment_jsons:
 
 The `json` file specifies which spots are part of the tissue and is used to create the filtered feature matrix files in the directory `filtered_peak_bc_matrix`. The pipeline expects an input json file the 10X SpaceRanger format (see [10X Genomics documentation](https://www.10xgenomics.com/support/software/space-ranger/analysis/inputs/image-fiducial-alignment)). 
 
+#### `run_type` - Run type specification
+
+This can be set to either `processing` or `debug`. If set to `processing`, `spatial_multiome` will run the preprocessing workflow and generate output objects for downstream analyiss; if set to `debug`, `spatial_multiome` will instead run a debug workflow and generate plots for QC and debugging. Currently, only pA/pT artifact filtering (see below) is implemented in the `debug` workflow. 
+
+```
+### Whether to do full run for processing or just debug/QC
+# two options: 'processing', 'debug'
+run_type: 'debug'
+```
+
 #### `ref` - Reference genome
 
 `spatial_multiome` uses the `bowtie2` aligner and expects references in a compatible format. If you have a `genome.fa` or `genome.fa.gz` file that contains the genome you would like to align to, run the following command to generate a `bowtie2`-compatible reference:
@@ -65,38 +75,9 @@ Replace `prefix` with a suitable name. References are specified in the config fi
 ref: path/to/ref/and/prefix
 ```
 
-Note: If `remove_artifacts` is set to `True` to enable filtering out artifactual peaks at genomic pA/pT regions, you must also specify the path to a `genome.fa` or `genome.fa.gz` file. This should be the same genome version as was used to create the `bowtie2` reference to ensure correct peak filtering.
-
-```
-# This needs to be specified if remove_artifacts is set!
-genome_fasta: path/to/genome/fasta
-```
-
 ## Configuring workflow options
 
 The workflow has a number of options that can be adjusted. These options are specified in the `config.yaml` configuration file, where each option is specified as a `param:value` pair. Options are explained below:
-
-#### `whitelist`
-
-```
-# Path for text file containing barcode whitelist
-whitelist: refs/visium-v1.txt
-```
-
-The whitelist text file contains all valid spatial barcodes, with one barcode on each line. For the Visium v1 protocol, this file is provided in this repository.
-
-#### `spot_coords`
-
-```
-# Path for text file containing spatial row/column indices of valid barcodes
-spot_coords: refs/visium-v1_coordinates.txt
-```
-
-The spot coordinates file is a tab-delimited file containing:
-
-Column 1: all valid spatial barcodes (these must match the barcodes specified in `whitelist` above) \
-Column 2: 1-based column index of the spatial barcode  \
-Column 3: 1-based row index of the spatial barcode 
 
 #### `umi-dedup`
 
@@ -132,6 +113,68 @@ macs2_genomesize: 1.87e9
 ```
 
 Effective genome size for MACS2 peak calling. Default sizes for common species are listed above.
+
+### Additional configuration options
+
+#### `remove_artifacts`
+
+The current spatial CUT&Tag chemistry is vulnerable to spurious peaks at genomic regions containing A/T homopolymers. If this option is set to `True`, peaks with genomic poly A/T sequences above a certain length within a certain distance of the peak will be filtered out. Thresholds can be set below. If you are uncertain which parameters to use for filtering, set `run_type = 'debug'` above; this will generate a plot showing the number of peaks filtered out at a range of threshold values, as well as a plot showing the degree of nucleotide bias which can help in determining if artifactual peaks are present. 
+
+```
+# Remove artifact pA/pT peaks
+remove_artifacts: True
+```
+
+#### `whitelist`
+
+```
+# Path for text file containing barcode whitelist
+whitelist: refs/visium-v1.txt
+```
+
+The whitelist text file contains all valid spatial barcodes, with one barcode on each line. For the Visium v1 protocol, this file is provided in this repository.
+
+#### `spot_coords`
+
+```
+# Path for text file containing spatial row/column indices of valid barcodes
+spot_coords: refs/visium-v1_coordinates.txt
+```
+
+The spot coordinates file is a tab-delimited file containing:
+
+Column 1: all valid spatial barcodes (these must match the barcodes specified in `whitelist` above) \
+Column 2: 1-based column index of the spatial barcode  \
+Column 3: 1-based row index of the spatial barcode 
+
+### Artifactual peak filtering options
+
+If `remove_artifacts` is set to `True`, these options set the thresholds below which artifactual peaks will be filtered out. If there is a poly A/T sequence of length greater than `poly_a_t_threshold` within `window_length` of a peak, it will be filtered out.
+
+#### `window_length`
+
+The size in bp of the window upstream and downstream of peaks to look for poly A/T genomic sequences. 
+
+```
+window_length: 70
+```
+
+#### `poly_a_t_threshold`
+
+The length of poly A/T genomic sequence above which a peak will be filtered out. 
+
+```
+poly_a_t_threshold: 10
+```
+
+#### `genome_fasta`
+
+If `remove_artifacts` is set to `True` to enable filtering out artifactual peaks at genomic poly A/T regions, you must also specify the path to a `genome.fa` or `genome.fa.gz` file. This should be the same genome version as was used to create the `bowtie2` reference to ensure correct peak filtering.
+
+```
+# This needs to be specified if remove_artifacts is set!
+genome_fasta: path/to/genome/fasta
+```
 
 ## Running the workflow
 
