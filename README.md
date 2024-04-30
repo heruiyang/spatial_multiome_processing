@@ -68,7 +68,7 @@ run_type: 'debug'
 bowtie2-build genome.fa {prefix}
 ```
 
-Replace `prefix` with a suitable name. References are specified in the config file using:
+Replace `prefix` with a suitable name. See the script `refs/GrCm39/make_bowtie_ref.sh` for an example of this. References are specified in the config file using:
 
 ```
 # Path and prefix for bowtie2 genome reference
