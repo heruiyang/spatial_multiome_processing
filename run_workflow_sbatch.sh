@@ -6,5 +6,7 @@
 #SBATCH --cpus-per-task=8 					# num cores
 
 source activate spatial_multiome
+# Deeptools should really be included in the environment
+module load deeptools
 
 snakemake -s workflow.snakefile --cores 8 --rerun-incomplete

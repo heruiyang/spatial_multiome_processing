@@ -225,6 +225,8 @@ rule create_feature_mtx:
 	run:
 		if params.remove_artifact:
 			print('Removing artifactual peaks...')
+			if not os.path.exists(params.output_dir):
+				os.mkdir(params.output_dir)
 			shell("Rscript ./scripts/process_artifacts.R {params.genome_fasta} {input.peaks} {params.run_type} {params.window} {params.p_len} {params.output_dir} &> {log}")
 			if {params.run_type == 'debug'}:
 				shell("Rscript ./scripts/create_feature_mtx.R {input.frag_file} {input.peaks} {params.output_dir} &> {log}")

@@ -15,7 +15,7 @@ sample_alignment_jsons:
 
 ### Whether to do full run for processing or just debug/QC
 # two options: 'processing', 'debug'
-run_type: 'processing'
+run_type: 'debug'
 
 # Path and prefix for bowtie2 genome reference
 ref: refs/GrCm39/GrCm39
@@ -29,7 +29,7 @@ umi_dedup: False
 
 ### Options for MACS2 peak calling
 # FDR threshold for peak calling
-macs2_fdr: 0.01
+macs2_fdr: 0.1
 
 # Effective genome size
 # Defaults for species:
@@ -40,7 +40,7 @@ macs2_fdr: 0.01
 macs2_genomesize: 1.87e9
 
 # Remove artifact pA/pT peaks (mostly redundant, included for QC and tech dev purposes) 
-remove_artifacts: False
+remove_artifacts: True
 
 ####################################################
 # Configuration options for spatial processing run #

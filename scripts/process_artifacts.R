@@ -26,8 +26,8 @@ filter_peaks <- function(peaks, p_len, window, genome){
   artifact_peaks <- rep(FALSE, dim(peaks)[1])
   for (i in seq_len(dim(peaks)[1])){
     peak <- peaks[i,]
-    upstream_region <- paste0(genome[[peak$chr]][(peak$start - window):(peak$start)], collapse='')
-    downstream_region <- paste0(genome[[peak$chr]][(peak$end):(peak$end + window)], collapse='')
+    upstream_region <- paste0(genome[[peak$chr]][max(peak$start - window, 1):(peak$start)], collapse='')
+    downstream_region <- paste0(genome[[peak$chr]][(peak$end):min(peak$end + window, length(genome[[peak$chr]]))], collapse='')
 
 
     if (grepl(pa_seq, upstream_region, fixed=T) || grepl(pt_seq, upstream_region, fixed=T) || grepl(pa_seq, downstream_region, fixed=T) || grepl(pa_seq, downstream_region, fixed=T)){
@@ -45,16 +45,19 @@ base_freqs <- function(peaks, window, genome){
 
   for (i in seq_len(dim(peaks)[1])){
     peak <- peaks[i,]
-    up_seq <- genome[[peak$chr]][(peak$start - window):(peak$start)]
-    down_seq <- genome[[peak$chr]][(peak$end):(peak$end + window)]
-    for (j in seq_len(window)){
-      if (!is.na(up_seq[j]) & up_seq[j] != 'n'){
-        seq_freqs[up_seq[j],j] <- seq_freqs[up_seq[j],j] + 1
-      }
-      if (!is.na(down_seq[j]) & up_seq[j] != 'n'){
-        seq_freqs[down_seq[j],j+window] <- seq_freqs[down_seq[j],j+window] + 1
+    if ((peak$start - window > 1) && (peak$end + window < length(genome[[peak$chr]]))){
+      up_seq <- genome[[peak$chr]][(peak$start - window):(peak$start)]
+      down_seq <- genome[[peak$chr]][(peak$end):(peak$end + window)]
+      for (j in seq_len(window)){
+        if (!is.na(up_seq[j]) & up_seq[j] != 'n'){
+          seq_freqs[up_seq[j],j] <- seq_freqs[up_seq[j],j] + 1
+        }
+        if (!is.na(down_seq[j]) & down_seq[j] != 'n'){
+          seq_freqs[down_seq[j],j+window] <- seq_freqs[down_seq[j],j+window] + 1
+        }
       }
     }
+    
   }
 
   seq_freqs <- apply(seq_freqs, 2, function(x){return(x/sum(x))})
@@ -84,12 +87,13 @@ if (test_type == 'debug'){
   plot_df[['plen']] <- as.numeric(rownames(plot_df))
   plot_df <- as.data.frame(melt(as.data.table(plot_df), id.vars=c('plen'), value.name=c('n_filtered_out')))
   pdf(filename, width=7, height=5)
-  ggplot(plot_df) +
+  p <- ggplot(plot_df) +
     geom_line(aes(x=plen,y=n_filtered_out,group=variable,color=variable)) +
     labs(color = 'Window size') +
     xlab('Poly A/T length threshold') +
     ylab('No. of peaks filtered out') +
     theme_classic()
+  print(p)
   dev.off()
 
   # Generate nucleotide frequency plots
@@ -98,16 +102,19 @@ if (test_type == 'debug'){
   plot_df <- as.data.frame(melt(as.data.table(out_df), id.vars=c('nucleotide'), value.name=c('frequency'), variable.name=c('position')))
   filename <- paste0(output_dir, '/nucleotide_freq_debug_plot.pdf',collapse='')
   pdf(filename, width=15, height=5)
-  ggplot(plot_df) + 
+  p <- ggplot(plot_df) + 
     geom_line(aes(x=position, y=frequency, group=nucleotide, color=nucleotide)) +
-    geom_vline(xintercept = window) + 
     theme_classic() +
+    ylim(0, 0.5) +
     xlab('Position') +
-    ylab('Nucleotide frequency')
+    ylab('Nucleotide frequency') +
+    theme(axis.text.x=element_blank(), axis.ticks.x=element_blank())
+  print(p)
   dev.off()
 } else {
-  barcodes <- readLines(bc_file)
-  counts <- Matrix::readMM(mtx_file)
+  window <- as.numeric(window)
+  p_len <- as.numeric(p_len)
+
   peaks_to_remove <- filter_peaks(peaks=peaks, p_len=p_len, window=window, genome=genome)
 
   print(paste0('Filtered out ',sum(peaks_to_remove),' peaks using parameters p_len=',p_len,' and window=',window,'.', collapse=''))

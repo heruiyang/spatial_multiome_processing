@@ -12,9 +12,10 @@ outfile = open(outfile_name, 'w')
 
 for read in bamfile.fetch():
 	# Filter by mapQ
-	# This should be a parameter; for now we use 30 by default like sinto
+	# This should be a parameter; for now we use 0 by default
+  # Note: this is different from sinto's default (30) since we are much more likely to get multi-mappers with single-end reads
 
-	if (read.mapq < 30):
+	if (read.mapq == 0):
 		continue
 
 	# Here we assume that the number of duplicate reads per fragment is always 1 since we filter out duplicate UMIs
