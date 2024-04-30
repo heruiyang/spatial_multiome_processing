@@ -134,6 +134,14 @@ Once the `config.yaml` file has been properly configured, run the following comm
 snakemake -s workflow.snakefile -j {num_cores}
 ```
 
+Alternatively, if you are running this in a SLURM-managed HPC system, you can use the `run_workflow_sbatch.sh` script to run the pipeline in the background using sbatch. In that case, run:
+
+```
+sbatch run_workflow_sbatch.sh
+```
+
+This should work assuming you have set up the environment correctly; if not, check the sbatch parameters at the top of the script.
+
 (Optional) before running the full workflow, you can run snakemake with options `-np` to execute a dry run:
 
 ```
