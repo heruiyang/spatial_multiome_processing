@@ -39,12 +39,12 @@ macs2_fdr: 0.1
 #   dm: 1.2e8
 macs2_genomesize: 1.87e9
 
-# Remove artifact pA/pT peaks (mostly redundant, included for QC and tech dev purposes) 
-remove_artifacts: True
-
 ####################################################
 # Configuration options for spatial processing run #
 ####################################################
+
+# Remove artifact pA/pT peaks
+remove_artifacts: True
 
 # Path for text file containing barcode whitelist
 whitelist: refs/visium-v1.txt
@@ -60,4 +60,5 @@ window_length: 70
 
 poly_a_t_threshold: 10
 
+# This needs to be specified if remove_artifacts is set!
 genome_fasta: path/to/genome/fasta
