@@ -65,6 +65,13 @@ Replace `prefix` with a suitable name. References are specified in the config fi
 ref: path/to/ref/and/prefix
 ```
 
+Note: If `remove_artifacts` is set to `True` to enable filtering out artifactual peaks at genomic pA/pT regions, you must also specify the path to a `genome.fa` or `genome.fa.gz` file. This should be the same genome version as was used to create the `bowtie2` reference to ensure correct peak filtering.
+
+```
+# This needs to be specified if remove_artifacts is set!
+genome_fasta: path/to/genome/fasta
+```
+
 ## Configuring workflow options
 
 The workflow has a number of options that can be adjusted. These options are specified in the `config.yaml` configuration file, where each option is specified as a `param:value` pair. Options are explained below:
