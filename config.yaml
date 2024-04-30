@@ -18,7 +18,7 @@ sample_alignment_jsons:
 run_type: 'debug'
 
 # Path and prefix for bowtie2 genome reference
-ref: refs/GrCm39/GrCm39
+ref: path/to/ref/and/prefix
 
 ###########################################
 # Configuration options for all run types #
