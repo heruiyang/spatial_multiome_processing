@@ -33,6 +33,12 @@ filter_peaks <- function(peaks, p_len, window, genome){
     if (grepl(pa_seq, upstream_region, fixed=T) || grepl(pt_seq, upstream_region, fixed=T) || grepl(pa_seq, downstream_region, fixed=T) || grepl(pa_seq, downstream_region, fixed=T)){
       artifact_peaks[i] <- TRUE
     }
+
+    # If the peak itself contains a poly-A or poly-T region, also filter it out
+    peak_region <- paste0(genome[[peak$chr]][peak$start:peak$end], collapse='')
+    if (grepl(pa_seq, peak_region, fixed=T) || grepl(pt_seq, peak_region, fixed=T)) {
+      artifact_peaks[i] <- TRUE
+    }
   }
 
   return(artifact_peaks)
