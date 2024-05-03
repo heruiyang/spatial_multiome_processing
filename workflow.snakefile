@@ -228,9 +228,9 @@ rule create_feature_mtx:
 			if not os.path.exists(params.output_dir):
 				os.mkdir(params.output_dir)
 			shell("Rscript ./scripts/process_artifacts.R {params.genome_fasta} {input.peaks} {params.run_type} {params.window} {params.p_len} {params.output_dir} &> {log}")
-			if {params.run_type == 'debug'}:
+			if (params.run_type == 'debug'):
 				shell("Rscript ./scripts/create_feature_mtx.R {input.frag_file} {input.peaks} {params.output_dir} &> {log}")
-			else:
+			elif (params.run_type == 'processing'):
 				shell("Rscript ./scripts/create_feature_mtx.R {input.frag_file} results/{wildcards.sample}/raw_peak_bc_matrix/filtered_peaks.narrowPeak {params.output_dir} &> {log}")
 		else:
 			shell("Rscript ./scripts/create_feature_mtx.R {input.frag_file} {input.peaks} {params.output_dir} &> {log}")
